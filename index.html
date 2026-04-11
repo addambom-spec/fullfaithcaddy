@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Full Faith Caddy v11 Course Selector</title>
+<title>Full Faith Caddy v12 Shot Direction</title>
 <style>
   :root {
     --gold:#d4af37;
@@ -323,7 +323,27 @@
       <div style="margin-top:10px;text-align:center;font-size:12px;color:rgba(255,255,255,.78);letter-spacing:.08em;text-transform:uppercase;" id="courseStatus">course selector ready</div>
     </div>
 
+    
+    <div class="glass" style="width:min(680px, 100%); margin:0 auto 14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="enableDirectionBtn" style="background:linear-gradient(180deg, var(--gold), var(--gold2));color:#17120b;border:none;border-radius:16px;padding:14px 12px;font-size:15px;font-weight:800;">Enable Shot Direction</button>
+        <button id="useManualAimBtn" style="background:rgba(0,0,0,.32);color:var(--white);border:1px solid var(--line);border-radius:16px;padding:14px 12px;font-size:15px;font-weight:700;">Use Manual Aim</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div class="field" style="margin:0;">
+          <label>Phone Heading</label>
+          <input id="headingDisplay" type="text" value="--°" readonly>
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Relative Wind</label>
+          <input id="relativeWindDisplay" type="text" value="awaiting aim" readonly>
+        </div>
+      </div>
+      <div style="margin-top:10px;text-align:center;font-size:12px;color:rgba(255,255,255,.78);letter-spacing:.08em;text-transform:uppercase;" id="directionStatus">shot direction ready</div>
+    </div>
+
     <div class="middle">
+
 
       <div>
         <div class="hero-distance" id="distanceDisplay">132</div>
@@ -416,7 +436,7 @@
       </div>
 
 
-    <div class="footer-note">v11 nearby course selector</div>
+    <div class="footer-note">v12.1 shot direction + added courses</div>
   </div>
 
 <script>
@@ -483,6 +503,111 @@
 
 
 
+
+  let deviceHeading = null;
+  let directionEnabled = false;
+  let useManualAim = false;
+
+  function normalizeDeg(deg){
+    let d = deg % 360;
+    if (d < 0) d += 360;
+    return d;
+  }
+
+  function getWindDirectionDegrees(){
+    const dir = Number(document.getElementById("windDir").value || 0);
+    return normalizeDeg(dir);
+  }
+
+  function getRelativeWindLabel(relativeDeg){
+    const d = normalizeDeg(relativeDeg);
+    if (d >= 337.5 || d < 22.5) return "headwind";
+    if (d < 67.5) return "right into";
+    if (d < 112.5) return "right to left";
+    if (d < 157.5) return "right helping";
+    if (d < 202.5) return "tailwind";
+    if (d < 247.5) return "left helping";
+    if (d < 292.5) return "left to right";
+    return "left into";
+  }
+
+  function updateRelativeWind(){
+    const headingEl = document.getElementById("headingDisplay");
+    const relEl = document.getElementById("relativeWindDisplay");
+    const windTextEl = document.getElementById("windText");
+    const dialEl = document.getElementById("windDial");
+
+    if (deviceHeading == null){
+      headingEl.value = "--°";
+      relEl.value = "awaiting aim";
+      return;
+    }
+
+    const windDeg = getWindDirectionDegrees();
+    const relative = normalizeDeg(windDeg - deviceHeading);
+    const label = getRelativeWindLabel(relative);
+
+    headingEl.value = Math.round(deviceHeading) + "°";
+    relEl.value = label;
+    windTextEl.textContent = label;
+    dialEl.style.setProperty("--wind-rotation", relative + "deg");
+  }
+
+  function handleOrientation(event){
+    let heading = null;
+
+    if (typeof event.webkitCompassHeading === "number"){
+      heading = event.webkitCompassHeading;
+    } else if (typeof event.alpha === "number"){
+      heading = 360 - event.alpha;
+    }
+
+    if (heading == null) return;
+    deviceHeading = normalizeDeg(heading);
+    updateRelativeWind();
+  }
+
+  async function enableShotDirection(){
+    const status = document.getElementById("directionStatus");
+    try {
+      if (typeof DeviceOrientationEvent !== "undefined" &&
+          typeof DeviceOrientationEvent.requestPermission === "function"){
+        const response = await DeviceOrientationEvent.requestPermission();
+        if (response !== "granted"){
+          status.textContent = "direction permission denied";
+          return;
+        }
+      }
+      window.addEventListener("deviceorientation", handleOrientation, true);
+      directionEnabled = true;
+      useManualAim = false;
+      status.textContent = "shot direction live";
+    } catch (e){
+      status.textContent = "direction unavailable";
+    }
+  }
+
+  function toggleManualAim(){
+    useManualAim = !useManualAim;
+    const status = document.getElementById("directionStatus");
+    const btn = document.getElementById("useManualAimBtn");
+    if (useManualAim){
+      status.textContent = "manual aim enabled";
+      btn.textContent = "Stop Manual Aim";
+    } else {
+      status.textContent = directionEnabled ? "shot direction live" : "shot direction ready";
+      btn.textContent = "Use Manual Aim";
+    }
+  }
+
+  function nudgeAim(delta){
+    if (!useManualAim) return;
+    if (deviceHeading == null) deviceHeading = 0;
+    deviceHeading = normalizeDeg(deviceHeading + delta);
+    updateRelativeWind();
+  }
+
+
   const courseCatalog = [
     {
       id: "green_river",
@@ -492,6 +617,26 @@
         { hole: 1, tee: { lat: 33.8782, lon: -117.6444 }, green: { lat: 33.8790, lon: -117.6431 } },
         { hole: 2, tee: { lat: 33.8793, lon: -117.6429 }, green: { lat: 33.8800, lon: -117.6417 } },
         { hole: 3, tee: { lat: 33.8802, lon: -117.6416 }, green: { lat: 33.8809, lon: -117.6402 } }
+      ]
+    },
+    {
+      id: "santa_ana_cc",
+      name: "Santa Ana Country Club",
+      center: { lat: 33.6675, lon: -117.8920 },
+      holes: [
+        { hole: 1, tee: { lat: 33.6679, lon: -117.8925 }, green: { lat: 33.6686, lon: -117.8913 } },
+        { hole: 2, tee: { lat: 33.6689, lon: -117.8911 }, green: { lat: 33.6697, lon: -117.8900 } },
+        { hole: 3, tee: { lat: 33.6700, lon: -117.8898 }, green: { lat: 33.6708, lon: -117.8888 } }
+      ]
+    },
+    {
+      id: "black_gold",
+      name: "Black Gold Golf Club",
+      center: { lat: 33.8880, lon: -117.7756 },
+      holes: [
+        { hole: 1, tee: { lat: 33.8884, lon: -117.7761 }, green: { lat: 33.8892, lon: -117.7750 } },
+        { hole: 2, tee: { lat: 33.8895, lon: -117.7748 }, green: { lat: 33.8903, lon: -117.7738 } },
+        { hole: 3, tee: { lat: 33.8906, lon: -117.7736 }, green: { lat: 33.8914, lon: -117.7725 } }
       ]
     },
     {
@@ -639,8 +784,17 @@
   document.getElementById("autoWindBtn").addEventListener("click", fetchAutoWind);
   document.getElementById("findCoursesBtn").addEventListener("click", populateNearbyCourses);
   document.getElementById("courseSelect").addEventListener("change", loadSelectedCourse);
+  document.getElementById("enableDirectionBtn").addEventListener("click", enableShotDirection);
+  document.getElementById("useManualAimBtn").addEventListener("click", toggleManualAim);
   document.getElementById("targetLat").addEventListener("input", updateDistanceFromGPS);
   document.getElementById("targetLon").addEventListener("input", updateDistanceFromGPS);
+
+  window.addEventListener("keydown", function(e){
+    if (!useManualAim) return;
+    if (e.key === "ArrowLeft") nudgeAim(-5);
+    if (e.key === "ArrowRight") nudgeAim(5);
+  });
+
   loadGreenTarget();
   updateScreen();
   }
@@ -757,8 +911,12 @@
     document.getElementById("microDisplay").textContent = getMicro(swing);
 
     document.getElementById("windMph").textContent = wind;
-    document.getElementById("windText").textContent = windNames[dir];
-    document.getElementById("windDial").style.setProperty("--wind-rotation", dir + "deg");
+    if (!directionEnabled && !useManualAim) {
+      document.getElementById("windText").textContent = windNames[dir];
+      document.getElementById("windDial").style.setProperty("--wind-rotation", dir + "deg");
+    } else {
+      updateRelativeWind();
+    }
 
     document.getElementById("verseText").textContent = faith.text;
     document.getElementById("verseRef").textContent = faith.ref;
