@@ -1,0 +1,22 @@
+FULL FAITH CADDY v11 — GITHUB CHECKLIST
+
+1. Create a public repo on GitHub.
+2. Upload:
+   - index.html
+   - .nojekyll
+   - README.md
+   - UPLOAD_CHECKLIST.txt
+3. Open repo Settings.
+4. Click Pages.
+5. Set:
+   - Source = Deploy from a branch
+   - Branch = main
+   - Folder = /(root)
+6. Save.
+7. Wait for the live URL.
+8. Open that URL on your phone.
+9. Allow GPS permissions.
+10. Test:
+   - Use My GPS
+   - Auto Wind
+   - Find Nearby
