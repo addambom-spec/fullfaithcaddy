@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Full Faith Caddy v12 Shot Direction</title>
+<title>Full Faith Caddy v12.2 Selector Fix</title>
 <style>
   :root {
     --gold:#d4af37;
@@ -436,7 +436,7 @@
       </div>
 
 
-    <div class="footer-note">v12.1 shot direction + added courses</div>
+    <div class="footer-note">v12.2 selector fix</div>
   </div>
 
 <script>
@@ -678,35 +678,48 @@
     return haversine(lat1, lon1, lat2, lon2) / 1609.34;
   }
 
+
   function populateNearbyCourses(){
     const select = document.getElementById("courseSelect");
     const status = document.getElementById("courseStatus");
     select.innerHTML = '<option value="">Select a course</option>';
 
-    if (!currentPosition){
-      status.textContent = "get GPS first";
+    let ranked = courseCatalog.slice();
+
+    if (currentPosition){
+      ranked = ranked
+        .map(c => ({ ...c, miles: milesBetween(currentPosition.lat, currentPosition.lon, c.center.lat, c.center.lon) }))
+        .sort((a,b) => a.miles - b.miles);
+
+      ranked.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        const milesText = Number.isFinite(c.miles) ? ` • ${c.miles.toFixed(1)} mi` : '';
+        opt.textContent = `${c.name}${milesText}`;
+        select.appendChild(opt);
+      });
+
+      if (ranked.length){
+        const nearest = ranked[0];
+        select.value = nearest.id;
+        selectedCourse = courseCatalog.find(c => c.id === nearest.id) || null;
+        status.textContent = `${ranked.length} courses loaded • nearest: ${nearest.name}`;
+      } else {
+        status.textContent = "no courses loaded";
+      }
       return;
     }
 
-    const nearby = courseCatalog
-      .map(c => ({ ...c, miles: milesBetween(currentPosition.lat, currentPosition.lon, c.center.lat, c.center.lon) }))
-      .filter(c => c.miles <= 5)
-      .sort((a,b) => a.miles - b.miles);
-
-    if (!nearby.length){
-      status.textContent = "no saved courses within 5 miles";
-      return;
-    }
-
-    nearby.forEach(c => {
+    ranked.forEach(c => {
       const opt = document.createElement("option");
       opt.value = c.id;
-      opt.textContent = `${c.name} • ${c.miles.toFixed(1)} mi`;
+      opt.textContent = c.name;
       select.appendChild(opt);
     });
 
-    status.textContent = `${nearby.length} nearby course(s) found`;
+    status.textContent = `${ranked.length} saved courses loaded`;
   }
+
 
   function loadSelectedCourse(){
     const id = document.getElementById("courseSelect").value;
@@ -720,12 +733,35 @@
     }
 
     status.textContent = `${selectedCourse.name} loaded`;
-    if (currentPosition) detectHoleFromTeebox();
+
+    if (currentPosition){
+      detectHoleFromTeebox();
+      return;
+    }
+
+    if (selectedCourse.holes && selectedCourse.holes.length){
+      selectedHole = selectedCourse.holes[0];
+      document.getElementById("targetLat").value = selectedHole.green.lat;
+      document.getElementById("targetLon").value = selectedHole.green.lon;
+      document.getElementById("gpsStatus").textContent = `${selectedCourse.name} • hole 1 preloaded`;
+      updateDistanceFromGPS();
+    }
   }
+
 
   function detectHoleFromTeebox(){
     const status = document.getElementById("courseStatus");
-    if (!currentPosition || !selectedCourse){
+    if (!selectedCourse){
+      return;
+    }
+
+    if (!currentPosition){
+      if (selectedCourse.holes && selectedCourse.holes.length){
+        selectedHole = selectedCourse.holes[0];
+        document.getElementById("targetLat").value = selectedHole.green.lat;
+        document.getElementById("targetLon").value = selectedHole.green.lon;
+        status.textContent = `${selectedCourse.name} • hole 1 ready`;
+      }
       return;
     }
 
@@ -740,6 +776,10 @@
       }
     });
 
+    if (!best && selectedCourse.holes && selectedCourse.holes.length){
+      best = selectedCourse.holes[0];
+    }
+
     if (!best){
       return;
     }
@@ -751,7 +791,6 @@
     updateDistanceFromGPS();
     status.textContent = `${selectedCourse.name} • hole ${best.hole} ready`;
   }
-
 
   let currentPosition = null;
 
@@ -796,6 +835,7 @@
   });
 
   loadGreenTarget();
+  populateNearbyCourses();
   updateScreen();
   }
 
