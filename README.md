@@ -1,2 +1,1 @@
-Full Faith Caddy v12.2 Selector Fix
-Upload to GitHub Pages.
+# Full Faith Caddy Range Mode Live\n\nUpload these files to your server or GitHub Pages.\n
